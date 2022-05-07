@@ -50,4 +50,30 @@ bc_df = read_csv("./data/breast-cancer.csv") %>%
            as.numeric(as.factor(recode(diagnosis, `M` = 1, `B` = 0))) - 1)
 ```
 
+```{r}
+# partitioning data
+set.seed(31)
+indexTrain <- createDataPartition(bc_df$diagnosis, p = 0.7, list = FALSE)
+trainData = bc_df[indexTrain, ]
+testData = bc_df[-indexTrain,]
+```
+
+```{r}
+# very primitive EDA
+bc_df_graph = 
+  bc_df %>% 
+  mutate(diagnosis = factor(recode(diagnosis, `1` = "M", `0` = "B"), level = c("B", "M")))
+```
+```{r}
+cancer_mean = bc_df_graph[, 2:11] %>% as_tibble() 
+colnames(cancer_mean) = gsub("_mean", "", colnames(cancer_mean))
+featurePlot(x = cancer_mean,
+            y = bc_df_graph$diagnosis,
+            scales = list(x = list(relation = "free"),
+                          y = list(relation = "free")),
+            plot = "density", pch = "|",
+            auto.key = list(columns = 2))
+```
+
+
 
