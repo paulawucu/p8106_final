@@ -1,0 +1,165 @@
+---
+title: "P8106 Final Codes"
+author: "Yuxuan Chen | Yuan Meng | Paula Wu"
+output: pdf_document
+---
+
+```{r setup, echo = FALSE, warnings = FALSE, message=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(corrplot)
+library(pROC)
+library(caret)
+library(patchwork)
+library(vip)
+
+knitr::opts_chunk$set(
+  warning = FALSE,
+  message = FALSE
+)
+
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+
+scale_colour_discrete = scale_colour_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
+```
+
+```{r}
+bc_df = read_csv("./data/breast-cancer.csv") %>% 
+  dplyr::select(-c(1, 33)) %>% 
+  janitor::clean_names() %>% 
+  # add extra row
+  add_row(diagnosis = 'B', radius_mean = 7.76, texture_mean = 24.54,
+          perimeter_mean = 47.92, area_mean = 181, smoothness_mean = 0.05263,
+          compactness_mean = 0.04362, concavity_mean = 0, 
+          concave_points_mean = 0, symmetry_mean = 0.1587,
+          fractal_dimension_mean = 0.05884, radius_se = 0.3857, 
+          texture_se = 1.428, perimeter_se = 2.548, area_se = 19.15,
+          smoothness_se = 0.007189, compactness_se = 0.00466, concavity_se = 0,
+          concave_points_se = 0, symmetry_se = 0.02676, 
+          fractal_dimension_se = 0.002783, radius_worst = 9.456, 
+          texture_worst = 30.37, perimeter_worst = 59.16, area_worst = 268.6,
+          smoothness_worst = 0.08996, compactness_worst = 0.06444,
+          concavity_worst = 0, concave_points_worst = 0, 
+          symmetry_worst = 0.2871, fractal_dimension_worst = 0.07039) 
+```
+
+```{r}
+set.seed(123)
+indexTrain = createDataPartition(y = bc_df$diagnosis, p = 0.7, list = FALSE)
+trainData = bc_df[indexTrain, ]
+testData = bc_df[-indexTrain, ]
+x_train = model.matrix(diagnosis ~., trainData)[, -1]
+y_train = trainData$diagnosis
+
+x_test = model.matrix(diagnosis ~., testData)[, -1]
+y_test = testData$diagnosis
+```
+
+
+```{r}
+#predictor correlations
+corrplot(cor(bc_df[,-1]),
+         method = "circle",
+         type = "full",
+         tl.cex = 0.5,
+         order = "hclust")
+```
+
+### Logistic Regression
+```{r}
+ctrl <- trainControl(method = "repeatedcv",
+                      repeats = 5,
+                      summaryFunction = twoClassSummary,
+                      classProbs = TRUE)
+set.seed(123)
+           
+glm_model <- train(x=trainData[,2:31],
+                   y=trainData$diagnosis,
+                  method ="glm",
+                  metric ="ROC",
+                  trControl =ctrl)
+summary(glm_model)
+```
+
+```{r}
+set.seed(123)
+glm_fit = glm(diagnosis ~ .,
+              data = trainData,
+              family = binomial(link = "logit"))
+summary(glm_fit)
+vip(glm_fit)
+glm.pred.prob = predict(glm_fit, 
+                        type = "response")
+glm.pred = rep("0", length(glm.pred.prob))
+glm.pred[glm.pred.prob > 0.5] = "1"
+confusionMatrix(data = factor(glm.pred, levels = c("1", "0")),
+                reference = factor(trainData$diagnosis),
+                positive = "1")
+glm.pred.prob.test = predict(glm_fit, type = "response", newdata = testData)
+roc.glm.test = roc(testData$diagnosis, glm.pred.prob.test)
+plot(roc.glm.test, legacy.axes = TRUE, print.auc = TRUE)
+
+```
+
+### Fit MARS 
+```{r}
+set.seed(123)
+mars_grid <- expand.grid(degree = 1:5, 
+                         nprune = 2:20)
+ctrl1 <- trainControl(method = "repeatedcv",
+                      repeats = 5,
+                      number = 10)
+mars_fit <- train(x = x_train, 
+                  y = y_train,
+                 method = "earth",
+                 tuneGrid = mars_grid,
+                 trControl = ctrl1)
+ggplot(mars_fit)
+mars_fit$bestTune
+coef(mars_fit$finalModel)
+```
+
+
+```{r}
+#Training RMSE 
+mars_train_se = mean(mars_fit$resample$RMSE) 
+mars_train_se
+
+#Testing RMSE 
+mars_test_predict = predict(mars_fit,
+                        newdata = x_test)
+mars_test_se = RMSE(mars_test_predict, testData$diagnosis)
+mars_test_se
+```
+
+## Fit KNN
+
+```{r}
+set.seed(123)
+ctrl1 <- trainControl(method = "repeatedcv",
+                      repeats = 5,
+                      number = 10)
+knn_fit <- train(diagnosis ~., 
+                data = trainData, 
+                method = "knn",
+                scale = TRUE,
+                trControl = ctrl1)
+
+#Training RMSE 
+knn_train_se = mean(knn_fit$resample$RMSE) 
+knn_train_se
+
+#Testing RMSE 
+knn_test_predict = predict(knn_fit,
+                        newdata = testData)
+knn_test_se = RMSE(knn_test_predict, testData$diagnosis)
+knn_test_se
+```
+
+
