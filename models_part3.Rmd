@@ -142,13 +142,12 @@ test_svmr_error = mean(pred_svmr_test != testData$diagnosis)
 
 ## K-mean clustering
 ```{r}
-bc_df = bc_df %>% 
-  mutate(diagnosis = 
-           as.numeric(as.factor(recode(diagnosis, `M` = 1, `B` = 0))) - 1)
-bc_df_scale = bc_df[,2:31] %>% scale()
-bc_df_scale = data.frame(
-  diagnosis = bc_df$diagnosis,
-  data = bc_df_scale)
+index = seq.int(nrow(bc_df)) 
+class = paste0(bc_df$diagnosis,"-",index)
+
+bc_df_scale = bc_df[,2:31] %>% as.data.frame() 
+rownames(bc_df_scale) = class
+bc_df_scale = bc_df_scale %>% scale()
 
 set.seed(31)
 fviz_nbclust(bc_df_scale,
@@ -164,19 +163,20 @@ km_vis <- fviz_cluster(list(data = bc_df_scale, cluster = km$cluster),
 km_vis
 ```
 
+
 ## Hierarchical clustering using complete linkage and Euclidean distance
 
 ```{r}
 hc.complete.scaled <- hclust(dist(bc_df_scale), method = "complete")
 
-fviz_dend(hc.complete.scaled, k = 3,        
+fviz_dend(hc.complete.scaled, k = 2,        
           cex = 0.3, 
           palette = "jco", 
           color_labels_by_k = TRUE,
           rect = TRUE, rect_fill = TRUE, rect_border = "jco",
           labels_track_height = 1)
 
-bc.complete.scaled <- cutree(hc.complete.scaled, 3)
+bc.complete.scaled <- cutree(hc.complete.scaled, 2)
 
 ```
 
