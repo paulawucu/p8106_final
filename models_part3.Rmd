@@ -79,30 +79,39 @@ featurePlot(x = cancer_mean,
 a) Linear Kernel
 
 ```{r}
-ctrl <- trainControl(method = "cv")
+ctrl <- trainControl(method = "cv", classProbs = TRUE, summaryFunction = twoClassSummary)
 set.seed(31)
-svml.fit <- train(diagnosis~., 
+model.svml <- train(diagnosis~., 
                   data = trainData, 
                   method = "svmLinear2",
                   preProcess = c("center", "scale"),
                   tuneGrid = data.frame(cost = exp(seq(-3,2,len = 50))),
                   trControl = ctrl)
-ggplot(svml.fit, highlight = TRUE)
+ggplot(model.svml, highlight = TRUE)
 ```
 
 ```{r}
-svml.fit$bestTune
-svml.fit$finalModel
+model.svml$bestTune
+model.svml$finalModel
 ```
 
 ```{r}
 ## Linear Kernel Training Error Rate
-pred_svml_train = predict(svml.fit)
+pred_svml_train = predict(model.svml)
 train_error = mean(pred_svml_train != trainData$diagnosis)
 
 ## Linear Kernel Test Error Rate
-pred_svml_test = predict(svml.fit, newdata = testData, type = "raw")
+pred_svml_test = predict(model.svml, newdata = testData, type = "raw")
 test_error = mean(pred_svml_test != testData$diagnosis)
+```
+
+```{r}
+# SVML roc:
+pred_svml = predict(model.svml, newdata = testData, type = "prob")[,1]
+roc_svml = roc(testData$diagnosis, pred_svml,
+               levels = c("B", "M"))
+
+plot.roc(roc_svml, legacy.axes = TRUE, print.auc = TRUE,main = "SVML ROC Plot")
 ```
 
 b) Radial Kernel
@@ -111,7 +120,7 @@ svmr.grid <- expand.grid(C = exp(seq(-4,4,len=20)),
                          sigma = exp(seq(-4,0,len=10)))
 # tunes over both cost and sigma
 set.seed(31)
-svmr.fit <- train(diagnosis ~ . ,
+model.svmr <- train(diagnosis ~ . ,
                   data = trainData,
                   method = "svmRadialSigma",
                   preProcess = c("center", "scale"),
@@ -120,22 +129,31 @@ svmr.fit <- train(diagnosis ~ . ,
 myCol<- rainbow(20)
 myPar <- list(superpose.symbol = list(col = myCol),
               superpose.line = list(col = myCol))
-ggplot(svmr.fit, highlight = TRUE, par.settings = myPar)
+ggplot(model.svmr, highlight = TRUE, par.settings = myPar)
 ```
 
 ```{r}
-svmr.fit$bestTune
-svmr.fit$finalModel
+model.svmr$bestTune
+model.svmr$finalModel
 ```
 
 ```{r}
 # Radial Kernel training error rate
-pred_svmr_train = predict(svmr.fit)
+pred_svmr_train = predict(model.svmr)
 train_svmr_error = mean(pred_svmr_train != trainData$diagnosis)
 
 # Radial Kernel test error rate
-pred_svmr_test = predict(svmr.fit, newdata = testData, type = "raw")
+pred_svmr_test = predict(model.svmr, newdata = testData, type = "raw")
 test_svmr_error = mean(pred_svmr_test != testData$diagnosis)
+```
+
+```{r}
+# SVMR roc:
+pred_svmr = predict(model.svmr, newdata = testData, type = "prob")[,1]
+roc_svmr = roc(testData$diagnosis, pred_svmr,
+               levels = c("B", "M"))
+
+plot.roc(roc_svmr, legacy.axes = TRUE, print.auc = TRUE,main = "SVMR ROC Plot")
 ```
 
 #Cluster Analysis
@@ -162,6 +180,10 @@ km_vis <- fviz_cluster(list(data = bc_df_scale, cluster = km$cluster),
                        palette = "Dark2") + labs(title = "K-means") 
 km_vis
 ```
+
+
+
+
 
 
 ## Hierarchical clustering using complete linkage and Euclidean distance
