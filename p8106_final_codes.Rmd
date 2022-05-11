@@ -29,9 +29,10 @@ scale_fill_discrete = scale_fill_viridis_d
 ```
 
 ```{r}
-bc_df = read_csv("./data/breast-cancer.csv") %>% 
-  dplyr::select(-c(1, 33)) %>% 
+bc_df = read.csv("./data/breast-cancer.csv", row.names = NULL) %>% 
+  dplyr::select(-c(1,33)) %>% 
   janitor::clean_names() %>% 
+<<<<<<< HEAD
   # add extra row
   add_row(diagnosis = 'B', radius_mean = 7.76, texture_mean = 24.54,
           perimeter_mean = 47.92, area_mean = 181, smoothness_mean = 0.05263,
@@ -76,6 +77,224 @@ featurePlot(x = cancer_mean,
                           y = list(relation = "free")),
             plot = "density", pch = "|",
             auto.key = list(columns = 2))
+
+#predictor correlations
+corrplot(cor(bc_df[,-1]),
+         method = "circle",
+         type = "upper",
+         tl.cex = 0.5,
+         order = "hclust")
+```
+
+## Modeling:
+
+### Logistic Regression
+```{r}
+ctrl <- trainControl(method = "repeatedcv",
+                      repeats = 5,
+                      summaryFunction = twoClassSummary,
+                      classProbs = TRUE)
+set.seed(31)
+           
+glm_model <- train(x=trainData[,2:31],
+                   y=trainData$diagnosis,
+                  method ="glm",
+                  metric ="ROC",
+                  trControl =ctrl)
+summary(glm_model)
+```
+
+```{r}
+set.seed(31)
+train_data = trainData %>% 
+   mutate(diagnosis = 
+           as.numeric(as.factor(recode(diagnosis, `M` = 1, `B` = 0))) - 1)
+
+glm_fit = glm(diagnosis ~ .,
+              data = train_data,
+              family = binomial(link = "logit"))
+summary(glm_fit)
+vip(glm_fit)
+glm.pred.prob = predict(glm_fit, 
+                        type = "response")
+glm.pred = rep("0", length(glm.pred.prob))
+glm.pred[glm.pred.prob > 0.5] = "1"
+confusionMatrix(data = factor(glm.pred, levels = c("1", "0")),
+                reference = factor(train_data$diagnosis),
+                positive = "1")
+glm.pred.prob.test = predict(glm_fit, type = "response", newdata = testData)
+roc.glm.test = roc(testData$diagnosis, glm.pred.prob.test)
+plot(roc.glm.test, legacy.axes = TRUE, print.auc = TRUE)
+
+```
+
+### Fit MARS 
+```{r}
+set.seed(31)
+mars_grid <- expand.grid(degree = 1:5, 
+                         nprune = 2:20)
+ctrl1 <- trainControl(method = "repeatedcv",
+                      repeats = 5,
+                      number = 10)
+mars_fit <- train(x = x_train, 
+                  y = train_y,
+                 method = "earth",
+                 tuneGrid = mars_grid,
+                 trControl = ctrl1)
+ggplot(mars_fit)
+mars_fit$bestTune
+coef(mars_fit$finalModel)
+```
+
+
+```{r}
+#Training RMSE 
+mars_train_se = mean(mars_fit$resample$RMSE) 
+mars_train_se
+
+#Testing RMSE 
+mars_test_predict = predict(mars_fit,
+                        newdata = x_test)
+mars_test_se = RMSE(mars_test_predict, test_data$diagnosis)
+mars_test_se
+```
+
+## Fit KNN
+
+```{r}
+set.seed(31)
+ctrl1 <- trainControl(method = "repeatedcv",
+                      repeats = 5,
+                      number = 10)
+knn_fit <- train(diagnosis ~., 
+                data = train_data, 
+                method = "knn",
+                preProcess = c("center", "scale"), 
+                tuneGrid = data.frame(k = seq(1,50,by=1)),
+                trControl = ctrl1)
+knn_fit$bestTune
+ggplot(knn_fit,xTrans = function(x)log(x), highlight = TRUE)
+
+#Training RMSE 
+knn_train_se = mean(knn_fit$resample$RMSE) 
+knn_train_se
+
+#Testing RMSE 
+knn_test_predict = predict(knn_fit,
+                        newdata = test_data)
+knn_test_se = RMSE(knn_test_predict, test_data$diagnosis)
+knn_test_se
+```
+
+## SVM (linear and radial kernel)
+
+a) Linear Kernel
+
+```{r}
+ctrl <- trainControl(method = "cv", classProbs = TRUE, summaryFunction = twoClassSummary)
+set.seed(31)
+model.svml <- train(diagnosis~., 
+                  data = trainData, 
+                  method = "svmLinear2",
+                  preProcess = c("center", "scale"),
+                  tuneGrid = data.frame(cost = exp(seq(-3,2,len = 50))),
+                  trControl = ctrl)
+ggplot(model.svml, highlight = TRUE)
+
+model.svml$bestTune
+model.svml$finalModel
+
+## Linear Kernel Training Error Rate
+pred_svml_train = predict(model.svml)
+train_error = mean(pred_svml_train != trainData$diagnosis)
+
+## Linear Kernel Test Error Rate
+pred_svml_test = predict(model.svml, newdata = testData, type = "raw")
+test_error = mean(pred_svml_test != testData$diagnosis)
+
+# SVML roc:
+pred_svml = predict(model.svml, newdata = testData, type = "prob")[,1]
+roc_svml = roc(testData$diagnosis, pred_svml,
+               levels = c("B", "M"))
+
+plot.roc(roc_svml, legacy.axes = TRUE, print.auc = TRUE,main = "SVML ROC Plot")
+```
+
+b) Radial Kernel
+```{r}
+svmr.grid <- expand.grid(C = exp(seq(-4,4,len=20)),
+                         sigma = exp(seq(-4,0,len=10)))
+# tunes over both cost and sigma
+set.seed(31)
+model.svmr <- train(diagnosis ~ . ,
+                  data = trainData,
+                  method = "svmRadialSigma",
+                  preProcess = c("center", "scale"),
+                  tuneGrid = svmr.grid,
+                  trControl = ctrl)
+myCol<- rainbow(20)
+myPar <- list(superpose.symbol = list(col = myCol),
+              superpose.line = list(col = myCol))
+ggplot(model.svmr, highlight = TRUE, par.settings = myPar)
+
+model.svmr$bestTune
+model.svmr$finalModel
+
+# Radial Kernel training error rate
+pred_svmr_train = predict(model.svmr)
+train_svmr_error = mean(pred_svmr_train != trainData$diagnosis)
+
+# Radial Kernel test error rate
+pred_svmr_test = predict(model.svmr, newdata = testData, type = "raw")
+test_svmr_error = mean(pred_svmr_test != testData$diagnosis)
+
+# SVMR roc:
+pred_svmr = predict(model.svmr, newdata = testData, type = "prob")[,1]
+roc_svmr = roc(testData$diagnosis, pred_svmr,
+               levels = c("B", "M"))
+
+plot.roc(roc_svmr, legacy.axes = TRUE, print.auc = TRUE,main = "SVMR ROC Plot")
+```
+
+##Cluster Analysis
+
+### K-mean clustering
+```{r}
+index = seq.int(nrow(bc_df)) 
+class = paste0(bc_df$diagnosis,"-",index)
+
+bc_df_scale = bc_df[,2:31] %>% as.data.frame() 
+rownames(bc_df_scale) = class
+bc_df_scale = bc_df_scale %>% scale()
+
+set.seed(31)
+fviz_nbclust(bc_df_scale,
+             FUNcluster = kmeans,
+             method = "silhouette")
+
+km <- kmeans(bc_df_scale, centers = 2, nstart = 20)
+km_vis <- fviz_cluster(list(data = bc_df_scale, cluster = km$cluster), 
+                       ellipse.type = "convex", 
+                       geom = c("point","text"),
+                       labelsize = 5, 
+                       palette = "Dark2") + labs(title = "K-means") 
+km_vis
+```
+
+### Hierarchical clustering using complete linkage and Euclidean distance
+
+```{r}
+hc.complete.scaled <- hclust(dist(bc_df_scale), method = "complete")
+
+fviz_dend(hc.complete.scaled, k = 2,        
+          cex = 0.3, 
+          palette = "jco", 
+          color_labels_by_k = TRUE,
+          rect = TRUE, rect_fill = TRUE, rect_border = "jco",
+          labels_track_height = 1)
+
+bc.complete.scaled <- cutree(hc.complete.scaled, 2)
+
 ```
 ```{r eval = F}
 partimat(diagnosis ~ radius_mean + radius_se + radius_worst, data = bc_df, subset = indexTrain, method = "lda")
@@ -95,12 +314,17 @@ classification tree & RF
 ```{r}
 # classification tree
 set.seed(31)
-tree_fit = rpart(diagnosis ~ . ,
-                 trainData,
-                 control = rpart.control(cp = 0))
-plotcp(tree_fit)
-cpTable = printcp(tree_fit)
+rpart_fit = train(diagnosis ~., trainData,
+                  method = "rpart",
+                  tuneGrid = data.frame(cp = exp(seq(-20,-2, len = 50))),
+                  trControl = ctrl1,
+                  metric = "ROC")
 ```
+```{r}
+rpart_pred = predict(rpart_fit, newdata = testData, type = "prob")[,2]
+roc(testData$diagnosis, rpart_pred)
+```
+
 random forest
 ```{r}
 
@@ -110,18 +334,14 @@ random forest
 LDA & QDA
 ```{r}
 # LDA
-#lda_fit = train(diagnosis ~. ,
-#                data = trainData,
-#                method = "lda",
-#                metric = "ROC",
-#                trControl = ctrl1)
+lda_fit = train(diagnosis ~. ,
+                data = trainData,
+                method = "lda",
+                metric = "ROC",
+                trControl = ctrl1)
 set.seed(88)
 lda_fit = lda(diagnosis~., data = bc_df, subset = indexTrain)
 plot(lda_fit)
-# QDA
-set.seed(88)
-qda_fit = qda(diagnosis~., data = trainData)
-#plot(qda_fit)
 ```
 
 Boosting
@@ -142,21 +362,6 @@ gbmA_fit = train(diagnosis ~.,
                   verbose = FALSE)
 #saveRDS(gbmA_fit, "./results/gbmA_fit.rds")
 readRDS("./results/gbmA_fit.rds")
-```
-
-
-Naive bayes
-```{r}
-set.seed(88)
-nbGrid <- expand.grid(usekernel = c(FALSE,TRUE),
-                      fL = 1, 
-                      adjust = seq(.2, 2.5, by = .2))
-model.nb <- train(x = x,
-                  y = y,
-                  method = "nb",
-                  tuneGrid = nbGrid,
-                  metric = "ROC",
-                  trControl = ctrl)
 ```
 
 
