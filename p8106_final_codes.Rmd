@@ -46,8 +46,9 @@ bc_df = read_csv("./data/breast-cancer.csv") %>%
           smoothness_worst = 0.08996, compactness_worst = 0.06444,
           concavity_worst = 0, concave_points_worst = 0, 
           symmetry_worst = 0.2871, fractal_dimension_worst = 0.07039) %>% 
-  mutate(diagnosis = 
-           as.numeric(as.factor(recode(diagnosis, `M` = 1, `B` = 0))) - 1)
+  mutate(diagnosis = factor(diagnosis, level = c("B", "M")))
+unique(bc_df$diagnosis)
+formula_all = parse(text = paste0("diagnosis ~ ", paste(colnames(bc_df[2:31]),collapse = " + ")))[[1]]
 ```
 
 ```{r}
@@ -56,6 +57,8 @@ set.seed(31)
 indexTrain <- createDataPartition(bc_df$diagnosis, p = 0.7, list = FALSE)
 trainData = bc_df[indexTrain, ]
 testData = bc_df[-indexTrain,]
+x = model.matrix(diagnosis~., trainData)[,-1]
+y = trainData$diagnosis
 ```
 
 ```{r}
@@ -74,6 +77,86 @@ featurePlot(x = cancer_mean,
             plot = "density", pch = "|",
             auto.key = list(columns = 2))
 ```
+```{r eval = F}
+partimat(diagnosis ~ radius_mean + radius_se + radius_worst, data = bc_df, subset = indexTrain, method = "lda")
+```
 
+
+## models
+```{r}
+# classification control
+ctrl1 = trainControl(method = "repeatedcv",
+                     classProbs = TRUE,
+                     summaryFunction = twoClassSummary)
+```
+
+classification tree & RF
+
+```{r}
+# classification tree
+set.seed(31)
+tree_fit = rpart(diagnosis ~ . ,
+                 trainData,
+                 control = rpart.control(cp = 0))
+plotcp(tree_fit)
+cpTable = printcp(tree_fit)
+```
+random forest
+```{r}
+
+```
+
+
+LDA & QDA
+```{r}
+# LDA
+#lda_fit = train(diagnosis ~. ,
+#                data = trainData,
+#                method = "lda",
+#                metric = "ROC",
+#                trControl = ctrl1)
+set.seed(88)
+lda_fit = lda(diagnosis~., data = bc_df, subset = indexTrain)
+plot(lda_fit)
+# QDA
+set.seed(88)
+qda_fit = qda(diagnosis~., data = trainData)
+#plot(qda_fit)
+```
+
+Boosting
+```{r}
+
+gbmA_grid = expand.grid(n.trees = c(2000,3000,4000,5000),
+                         interaction.depth = 1:6,
+                         shrinkage = c(0.0005,0.001,0.002),
+                         n.minobsinnode = 1)
+
+gbmA_fit = train(diagnosis ~.,
+                 trainData,
+                  tuneGrid = gbmA_grid,
+                  trControl = ctrl1,
+                  method = "gbm",
+                  distribution = "adaboost",
+                  metric = "ROC",
+                  verbose = FALSE)
+#saveRDS(gbmA_fit, "./results/gbmA_fit.rds")
+readRDS("./results/gbmA_fit.rds")
+```
+
+
+Naive bayes
+```{r}
+set.seed(88)
+nbGrid <- expand.grid(usekernel = c(FALSE,TRUE),
+                      fL = 1, 
+                      adjust = seq(.2, 2.5, by = .2))
+model.nb <- train(x = x,
+                  y = y,
+                  method = "nb",
+                  tuneGrid = nbGrid,
+                  metric = "ROC",
+                  trControl = ctrl)
+```
 
 
