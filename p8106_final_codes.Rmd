@@ -58,10 +58,116 @@ featurePlot(x = cancer_mean,
                           y = list(relation = "free")),
             plot = "density", pch = "|",
             auto.key = list(columns = 2))
+
+#predictor correlations
+corrplot(cor(bc_df[,-1]),
+         method = "circle",
+         type = "upper",
+         tl.cex = 0.5,
+         order = "hclust")
+```
+
+## Modeling:
+
+### Logistic Regression
+```{r}
+ctrl <- trainControl(method = "repeatedcv",
+                      repeats = 5,
+                      summaryFunction = twoClassSummary,
+                      classProbs = TRUE)
+set.seed(31)
+           
+glm_model <- train(x=trainData[,2:31],
+                   y=trainData$diagnosis,
+                  method ="glm",
+                  metric ="ROC",
+                  trControl =ctrl)
+summary(glm_model)
+```
+
+```{r}
+set.seed(31)
+train_data = trainData %>% 
+   mutate(diagnosis = 
+           as.numeric(as.factor(recode(diagnosis, `M` = 1, `B` = 0))) - 1)
+
+glm_fit = glm(diagnosis ~ .,
+              data = train_data,
+              family = binomial(link = "logit"))
+summary(glm_fit)
+vip(glm_fit)
+glm.pred.prob = predict(glm_fit, 
+                        type = "response")
+glm.pred = rep("0", length(glm.pred.prob))
+glm.pred[glm.pred.prob > 0.5] = "1"
+confusionMatrix(data = factor(glm.pred, levels = c("1", "0")),
+                reference = factor(train_data$diagnosis),
+                positive = "1")
+glm.pred.prob.test = predict(glm_fit, type = "response", newdata = testData)
+roc.glm.test = roc(testData$diagnosis, glm.pred.prob.test)
+plot(roc.glm.test, legacy.axes = TRUE, print.auc = TRUE)
+
+```
+
+### Fit MARS 
+```{r}
+set.seed(31)
+mars_grid <- expand.grid(degree = 1:5, 
+                         nprune = 2:20)
+ctrl1 <- trainControl(method = "repeatedcv",
+                      repeats = 5,
+                      number = 10)
+mars_fit <- train(x = x_train, 
+                  y = train_y,
+                 method = "earth",
+                 tuneGrid = mars_grid,
+                 trControl = ctrl1)
+ggplot(mars_fit)
+mars_fit$bestTune
+coef(mars_fit$finalModel)
 ```
 
 
-# SVM (linear and radial kernel)
+```{r}
+#Training RMSE 
+mars_train_se = mean(mars_fit$resample$RMSE) 
+mars_train_se
+
+#Testing RMSE 
+mars_test_predict = predict(mars_fit,
+                        newdata = x_test)
+mars_test_se = RMSE(mars_test_predict, test_data$diagnosis)
+mars_test_se
+```
+
+## Fit KNN
+
+```{r}
+set.seed(31)
+ctrl1 <- trainControl(method = "repeatedcv",
+                      repeats = 5,
+                      number = 10)
+knn_fit <- train(diagnosis ~., 
+                data = train_data, 
+                method = "knn",
+                preProcess = c("center", "scale"), 
+                tuneGrid = data.frame(k = seq(1,50,by=1)),
+                trControl = ctrl1)
+knn_fit$bestTune
+ggplot(knn_fit,xTrans = function(x)log(x), highlight = TRUE)
+
+#Training RMSE 
+knn_train_se = mean(knn_fit$resample$RMSE) 
+knn_train_se
+
+#Testing RMSE 
+knn_test_predict = predict(knn_fit,
+                        newdata = test_data)
+knn_test_se = RMSE(knn_test_predict, test_data$diagnosis)
+knn_test_se
+```
+
+## SVM (linear and radial kernel)
 
 a) Linear Kernel
 
@@ -131,9 +237,9 @@ roc_svmr = roc(testData$diagnosis, pred_svmr,
 plot.roc(roc_svmr, legacy.axes = TRUE, print.auc = TRUE,main = "SVMR ROC Plot")
 ```
 
-#Cluster Analysis
+##Cluster Analysis
 
-## K-mean clustering
+### K-mean clustering
 ```{r}
 index = seq.int(nrow(bc_df)) 
 class = paste0(bc_df$diagnosis,"-",index)
@@ -156,7 +262,7 @@ km_vis <- fviz_cluster(list(data = bc_df_scale, cluster = km$cluster),
 km_vis
 ```
 
-## Hierarchical clustering using complete linkage and Euclidean distance
+### Hierarchical clustering using complete linkage and Euclidean distance
 
 ```{r}
 hc.complete.scaled <- hclust(dist(bc_df_scale), method = "complete")
