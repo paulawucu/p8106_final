@@ -156,6 +156,17 @@ roc_svmr = roc(testData$diagnosis, pred_svmr,
 plot.roc(roc_svmr, legacy.axes = TRUE, print.auc = TRUE,main = "SVMR ROC Plot")
 ```
 
+
+```{r}
+set.seed(1)             
+rpart.fit <- train(diabetes ~ . , dat, 
+                   subset = rowTrain,
+                   method = "rpart",
+                   tuneLength = 50,
+                   trControl = ctrl)
+
+```
+
 #Cluster Analysis
 
 ## K-mean clustering
@@ -180,8 +191,6 @@ km_vis <- fviz_cluster(list(data = bc_df_scale, cluster = km$cluster),
                        palette = "Dark2") + labs(title = "K-means") 
 km_vis
 ```
-
-
 
 
 
