@@ -2,6 +2,9 @@
 title: "P8106 Final Codes"
 author: "Yuxuan Chen | Yuan Meng | Paula Wu"
 output: pdf_document
+header-includes:
+    - \usepackage{hyperref}
+    - \usepackage{cite}
 ---
 
 ```{r setup, echo = FALSE, warnings = FALSE, message=FALSE}
@@ -11,6 +14,7 @@ library(corrplot)
 library(pROC)
 library(caret)
 library(patchwork)
+library(factoextra)
 
 knitr::opts_chunk$set(
   warning = FALSE,
@@ -32,21 +36,6 @@ scale_fill_discrete = scale_fill_viridis_d
 bc_df = read.csv("./data/breast-cancer.csv", row.names = NULL) %>% 
   dplyr::select(-c(1,33)) %>% 
   janitor::clean_names() %>% 
-<<<<<<< HEAD
-  # add extra row
-  add_row(diagnosis = 'B', radius_mean = 7.76, texture_mean = 24.54,
-          perimeter_mean = 47.92, area_mean = 181, smoothness_mean = 0.05263,
-          compactness_mean = 0.04362, concavity_mean = 0, 
-          concave_points_mean = 0, symmetry_mean = 0.1587,
-          fractal_dimension_mean = 0.05884, radius_se = 0.3857, 
-          texture_se = 1.428, perimeter_se = 2.548, area_se = 19.15,
-          smoothness_se = 0.007189, compactness_se = 0.00466, concavity_se = 0,
-          concave_points_se = 0, symmetry_se = 0.02676, 
-          fractal_dimension_se = 0.002783, radius_worst = 9.456, 
-          texture_worst = 30.37, perimeter_worst = 59.16, area_worst = 268.6,
-          smoothness_worst = 0.08996, compactness_worst = 0.06444,
-          concavity_worst = 0, concave_points_worst = 0, 
-          symmetry_worst = 0.2871, fractal_dimension_worst = 0.07039) %>% 
   mutate(diagnosis = factor(diagnosis, level = c("B", "M")))
 unique(bc_df$diagnosis)
 formula_all = parse(text = paste0("diagnosis ~ ", paste(colnames(bc_df[2:31]),collapse = " + ")))[[1]]
@@ -76,6 +65,7 @@ featurePlot(x = cancer_mean,
             scales = list(x = list(relation = "free"),
                           y = list(relation = "free")),
             plot = "density", pch = "|",
+            strip=strip.custom(par.strip.text=list(cex=.7)),
             auto.key = list(columns = 2))
 
 #predictor correlations
@@ -86,62 +76,68 @@ corrplot(cor(bc_df[,-1]),
          order = "hclust")
 ```
 
-## Modeling:
 
-### Logistic Regression
+## Modeling:
 ```{r}
-ctrl <- trainControl(method = "repeatedcv",
-                      repeats = 5,
+ctrl <- trainControl(method = "cv",
                       summaryFunction = twoClassSummary,
                       classProbs = TRUE)
-set.seed(31)
-           
-glm_model <- train(x=trainData[,2:31],
-                   y=trainData$diagnosis,
-                  method ="glm",
-                  metric ="ROC",
-                  trControl =ctrl)
-summary(glm_model)
+```
+
+### Penalized Logistic Regression
+```{r}
+
+glmnGrid = expand.grid(.alpha = seq(0,1,length = 21),
+                       .lambda = exp(seq(-8,-1,length =50)))
+set.seed(31)        
+glm_fit = train(x = x,
+                y = y,
+                method = "glmnet",
+                tuneGrid = glmnGrid,
+                metric = "ROC",
+                trControl = ctrl)
+glm_fit$bestTune
+
+```
+
+```{r}
+color_set = rainbow(25)
+parameter_set = list(superpose.symbol = list(col = color_set),
+                     superpose.line = list(col = color_set))
+glm_plot = plot(glm_fit, par.settings = parameter_set, xTrans = function(x) log(x))
 ```
 
 ```{r}
 set.seed(31)
-train_data = trainData %>% 
-   mutate(diagnosis = 
-           as.numeric(as.factor(recode(diagnosis, `M` = 1, `B` = 0))) - 1)
 
-glm_fit = glm(diagnosis ~ .,
-              data = train_data,
-              family = binomial(link = "logit"))
-summary(glm_fit)
-vip(glm_fit)
-glm.pred.prob = predict(glm_fit, 
-                        type = "response")
-glm.pred = rep("0", length(glm.pred.prob))
-glm.pred[glm.pred.prob > 0.5] = "1"
-confusionMatrix(data = factor(glm.pred, levels = c("1", "0")),
-                reference = factor(train_data$diagnosis),
-                positive = "1")
-glm.pred.prob.test = predict(glm_fit, type = "response", newdata = testData)
-roc.glm.test = roc(testData$diagnosis, glm.pred.prob.test)
-plot(roc.glm.test, legacy.axes = TRUE, print.auc = TRUE)
+#vip(glm_fit)
+#glm.pred.prob = predict(glm_model, 
+#                        type = "response")
+#glm.pred = rep("0", length(glm.pred.prob))
+#glm.pred[glm.pred.prob > 0.5] = "1"
+#confusionMatrix(data = factor(glm.pred, levels = c("1", "0")),
+#                reference = factor(train_data$diagnosis),
+#                positive = "1")
+#glm.pred.prob.test = predict(glm_fit, type = "response", newdata = testData)
+#roc.glm.test = roc(testData$diagnosis, glm.pred.prob.test)
+#plot(roc.glm.test, legacy.axes = TRUE, print.auc = TRUE)
 
 ```
 
 ### Fit MARS 
 ```{r}
 set.seed(31)
-mars_grid <- expand.grid(degree = 1:5, 
+mars_grid = expand.grid(degree = 1:5, 
                          nprune = 2:20)
-ctrl1 <- trainControl(method = "repeatedcv",
-                      repeats = 5,
-                      number = 10)
-mars_fit <- train(x = x_train, 
-                  y = train_y,
+
+mars_fit = train(x = x, 
+                  y = y,
                  method = "earth",
                  tuneGrid = mars_grid,
-                 trControl = ctrl1)
-ggplot(mars_fit)
+                 metric = "ROC",
+                 trControl = ctrl)
+
+mars_plot = ggplot(mars_fit, highlight = TRUE)
 mars_fit$bestTune
 coef(mars_fit$finalModel)
 ```
@@ -154,8 +150,8 @@ mars_train_se
 
 #Testing RMSE 
 mars_test_predict = predict(mars_fit,
-                        newdata = x_test)
-mars_test_se = RMSE(mars_test_predict, test_data$diagnosis)
+                        newdata = testData)
+mars_test_se = RMSE(mars_test_predict, testData$diagnosis)
 mars_test_se
 ```
 
@@ -163,17 +159,15 @@ mars_test_se
 
 ```{r}
 set.seed(31)
-ctrl1 <- trainControl(method = "repeatedcv",
-                      repeats = 5,
-                      number = 10)
-knn_fit <- train(diagnosis ~., 
-                data = train_data, 
+
+knn_fit = train(x = x,
+                y = y,
                 method = "knn",
                 preProcess = c("center", "scale"), 
                 tuneGrid = data.frame(k = seq(1,50,by=1)),
-                trControl = ctrl1)
+                trControl = ctrl)
 knn_fit$bestTune
-ggplot(knn_fit,xTrans = function(x)log(x), highlight = TRUE)
+knn_plot = ggplot(knn_fit,xTrans = function(x)log(x), highlight = TRUE)
 
 #Training RMSE 
 knn_train_se = mean(knn_fit$resample$RMSE) 
@@ -181,39 +175,107 @@ knn_train_se
 
 #Testing RMSE 
 knn_test_predict = predict(knn_fit,
-                        newdata = test_data)
-knn_test_se = RMSE(knn_test_predict, test_data$diagnosis)
+                        newdata = testData)
+knn_test_se = RMSE(knn_test_predict, testData$diagnosis)
 knn_test_se
 ```
+
+LDA
+```{r}
+# LDA
+set.seed(31)
+lda_fit = train(diagnosis ~. ,
+                data = trainData,
+                method = "lda",
+                metric = "ROC",
+                trControl = ctrl)
+```
+
+CART
+```{r}
+# classification tree
+set.seed(31)
+rpart_fit = train(diagnosis ~., trainData,
+                  method = "rpart",
+                  tuneGrid = data.frame(cp = exp(seq(-20,-2, len = 50))),
+                  trControl = ctrl,
+                  metric = "ROC")
+rpart_plot = ggplot(rpart_fit, highlight = TRUE)
+```
+```{r}
+rpart_pred = predict(rpart_fit, newdata = testData, type = "prob")[,2]
+roc(testData$diagnosis, rpart_pred)
+```
+
+random forest
+```{r}
+# random forest
+set.seed(31)
+rf_grid = expand.grid(mtry = 1:8,
+                      splitrule = "gini",
+                      min.node.size = seq(from = 2, to = 10, by = 2))
+rf_fit = train(diagnosis ~., trainData,
+               method = "ranger",
+               tuneGrid = rf_grid,
+               metric = "ROC",
+               trControl = ctrl)
+rf_plot = ggplot(rf_fit, highlight = TRUE)
+```
+
+```{r}
+rf_pred = predict(rf_fit, newdata = testData, type = "prob")[,1]
+roc_rf = roc(testData$diagnosis, rf_pred)
+plot(roc_rf, legacy.axes = TRUE, print.auc = TRUE)
+plot(smooth(roc_rf), col = 4, add = TRUE)
+```
+
+AdaBoost
+```{r}
+set.seed(31)
+gbmA_grid = expand.grid(n.trees = c(2000,3000,4000,5000),
+                         interaction.depth = 1:6,
+                         shrinkage = c(0.0005,0.001,0.002),
+                         n.minobsinnode = 1)
+
+gbmA_fit = train(diagnosis ~.,
+                 trainData,
+                  tuneGrid = gbmA_grid,
+                  trControl = ctrl,
+                  method = "gbm",
+                  distribution = "adaboost",
+                  metric = "ROC",
+                  verbose = FALSE)
+gbm_plot = ggplot(gbmA_fit, highlight = TRUE)
+```
+
 
 ## SVM (linear and radial kernel)
 
 a) Linear Kernel
 
 ```{r}
-ctrl <- trainControl(method = "cv", classProbs = TRUE, summaryFunction = twoClassSummary)
 set.seed(31)
-model.svml <- train(diagnosis~., 
+svml_fit <- train(diagnosis~., 
                   data = trainData, 
                   method = "svmLinear2",
                   preProcess = c("center", "scale"),
                   tuneGrid = data.frame(cost = exp(seq(-3,2,len = 50))),
                   trControl = ctrl)
-ggplot(model.svml, highlight = TRUE)
+svml_plot = ggplot(svml_fit, highlight = TRUE)
 
-model.svml$bestTune
-model.svml$finalModel
+svml_fit$bestTune
+svml_fit$finalModel
 
 ## Linear Kernel Training Error Rate
-pred_svml_train = predict(model.svml)
+pred_svml_train = predict(svml_fit)
 train_error = mean(pred_svml_train != trainData$diagnosis)
 
 ## Linear Kernel Test Error Rate
-pred_svml_test = predict(model.svml, newdata = testData, type = "raw")
+pred_svml_test = predict(svml_fit, newdata = testData, type = "raw")
 test_error = mean(pred_svml_test != testData$diagnosis)
 
 # SVML roc:
-pred_svml = predict(model.svml, newdata = testData, type = "prob")[,1]
+pred_svml = predict(svml_fit, newdata = testData, type = "prob")[,1]
 roc_svml = roc(testData$diagnosis, pred_svml,
                levels = c("B", "M"))
 
@@ -226,7 +288,7 @@ svmr.grid <- expand.grid(C = exp(seq(-4,4,len=20)),
                          sigma = exp(seq(-4,0,len=10)))
 # tunes over both cost and sigma
 set.seed(31)
-model.svmr <- train(diagnosis ~ . ,
+svmr_fit <- train(diagnosis ~ . ,
                   data = trainData,
                   method = "svmRadialSigma",
                   preProcess = c("center", "scale"),
@@ -235,21 +297,21 @@ model.svmr <- train(diagnosis ~ . ,
 myCol<- rainbow(20)
 myPar <- list(superpose.symbol = list(col = myCol),
               superpose.line = list(col = myCol))
-ggplot(model.svmr, highlight = TRUE, par.settings = myPar)
+svmr_plot = ggplot(svmr_fit, highlight = TRUE, par.settings = myPar)
 
-model.svmr$bestTune
-model.svmr$finalModel
+svmr_fit$bestTune
+svmr_fit$finalModel
 
 # Radial Kernel training error rate
-pred_svmr_train = predict(model.svmr)
+pred_svmr_train = predict(svmr_fit)
 train_svmr_error = mean(pred_svmr_train != trainData$diagnosis)
 
 # Radial Kernel test error rate
-pred_svmr_test = predict(model.svmr, newdata = testData, type = "raw")
+pred_svmr_test = predict(svmr_fit, newdata = testData, type = "raw")
 test_svmr_error = mean(pred_svmr_test != testData$diagnosis)
 
 # SVMR roc:
-pred_svmr = predict(model.svmr, newdata = testData, type = "prob")[,1]
+pred_svmr = predict(svmr_fit, newdata = testData, type = "prob")[,1]
 roc_svmr = roc(testData$diagnosis, pred_svmr,
                levels = c("B", "M"))
 
@@ -281,87 +343,24 @@ km_vis <- fviz_cluster(list(data = bc_df_scale, cluster = km$cluster),
 km_vis
 ```
 
-### Hierarchical clustering using complete linkage and Euclidean distance
 
+
+resampling results
 ```{r}
-hc.complete.scaled <- hclust(dist(bc_df_scale), method = "complete")
-
-fviz_dend(hc.complete.scaled, k = 2,        
-          cex = 0.3, 
-          palette = "jco", 
-          color_labels_by_k = TRUE,
-          rect = TRUE, rect_fill = TRUE, rect_border = "jco",
-          labels_track_height = 1)
-
-bc.complete.scaled <- cutree(hc.complete.scaled, 2)
-
-```
-```{r eval = F}
-partimat(diagnosis ~ radius_mean + radius_se + radius_worst, data = bc_df, subset = indexTrain, method = "lda")
+resamp = resamples(list(Plr = glm_fit,
+                      MARS = mars_fit,
+                      Knn = knn_fit,
+                      LDA = lda_fit,
+                      CART = rpart_fit,
+                      RF = rf_fit,
+                      GB = gbmA_fit,
+                      SVML = svml_fit,
+                      SVMR = svmr_fit))
+bwplot(resamp)
 ```
 
-
-## models
-```{r}
-# classification control
-ctrl1 = trainControl(method = "repeatedcv",
-                     classProbs = TRUE,
-                     summaryFunction = twoClassSummary)
-```
-
-classification tree & RF
-
-```{r}
-# classification tree
-set.seed(31)
-rpart_fit = train(diagnosis ~., trainData,
-                  method = "rpart",
-                  tuneGrid = data.frame(cp = exp(seq(-20,-2, len = 50))),
-                  trControl = ctrl1,
-                  metric = "ROC")
-```
-```{r}
-rpart_pred = predict(rpart_fit, newdata = testData, type = "prob")[,2]
-roc(testData$diagnosis, rpart_pred)
-```
-
-random forest
+test AUC
 ```{r}
 
 ```
-
-
-LDA & QDA
-```{r}
-# LDA
-lda_fit = train(diagnosis ~. ,
-                data = trainData,
-                method = "lda",
-                metric = "ROC",
-                trControl = ctrl1)
-set.seed(88)
-lda_fit = lda(diagnosis~., data = bc_df, subset = indexTrain)
-plot(lda_fit)
-```
-
-Boosting
-```{r}
-
-gbmA_grid = expand.grid(n.trees = c(2000,3000,4000,5000),
-                         interaction.depth = 1:6,
-                         shrinkage = c(0.0005,0.001,0.002),
-                         n.minobsinnode = 1)
-
-gbmA_fit = train(diagnosis ~.,
-                 trainData,
-                  tuneGrid = gbmA_grid,
-                  trControl = ctrl1,
-                  method = "gbm",
-                  distribution = "adaboost",
-                  metric = "ROC",
-                  verbose = FALSE)
-#saveRDS(gbmA_fit, "./results/gbmA_fit.rds")
-readRDS("./results/gbmA_fit.rds")
-```
-
 

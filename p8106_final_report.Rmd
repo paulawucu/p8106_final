@@ -17,7 +17,7 @@ The original dataset contains 569 observations and 33 columns \cite{ref3}. Among
 ## Exploratory Data Analysis
 
 ## Modeling & Results
-aha \cite{ref1}
+aha \autoref{fig1}
 
 ## Conclusion & Discussion
 
@@ -51,6 +51,44 @@ options(
 scale_colour_discrete = scale_colour_viridis_d
 scale_fill_discrete = scale_fill_viridis_d
 ```
+```{r}
+bc_df = read.csv("./data/breast-cancer.csv", row.names = NULL) %>% 
+  dplyr::select(-c(1,33)) %>% 
+  janitor::clean_names() %>% 
+  mutate(diagnosis = factor(diagnosis, level = c("B", "M")))
+unique(bc_df$diagnosis)
+formula_all = parse(text = paste0("diagnosis ~ ", paste(colnames(bc_df[2:31]),collapse = " + ")))[[1]]
+```
+```{r}
+# partitioning data
+set.seed(31)
+indexTrain <- createDataPartition(bc_df$diagnosis, p = 0.7, list = FALSE)
+trainData = bc_df[indexTrain, ]
+testData = bc_df[-indexTrain,]
+x = model.matrix(diagnosis~., trainData)[,-1]
+y = trainData$diagnosis
+```
+
+```{r}
+# very primitive EDA
+bc_df_graph = 
+  bc_df %>% 
+  mutate(diagnosis = factor(recode(diagnosis, `1` = "M", `0` = "B"), level = c("B", "M")))
+```
+```{r}
+cancer_mean = bc_df_graph[, 2:11] %>% as_tibble() 
+colnames(cancer_mean) = gsub("_mean", "", colnames(cancer_mean))
+featurePlot(x = cancer_mean,
+            y = bc_df_graph$diagnosis,
+            scales = list(x = list(relation = "free"),
+                          y = list(relation = "free")),
+            plot = "density", pch = "|",
+            strip=strip.custom(par.strip.text=list(cex=.7)),
+            auto.key = list(columns = 2))
+```
+
+\centerline{Figure 1: Feature Plots}\label{fig1}
+
 
 \clearpage
 \begin{thebibliography}{999}
