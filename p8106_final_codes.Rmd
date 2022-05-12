@@ -201,6 +201,7 @@ rpart_fit = train(diagnosis ~., trainData,
                   trControl = ctrl,
                   metric = "ROC")
 rpart_plot = ggplot(rpart_fit, highlight = TRUE)
+rpart_fit$bestTune
 ```
 ```{r}
 rpart_pred = predict(rpart_fit, newdata = testData, type = "prob")[,2]
@@ -220,6 +221,7 @@ rf_fit = train(diagnosis ~., trainData,
                metric = "ROC",
                trControl = ctrl)
 rf_plot = ggplot(rf_fit, highlight = TRUE)
+rf_fit$bestTune
 ```
 
 ```{r}
@@ -245,6 +247,7 @@ gbmA_fit = train(diagnosis ~.,
                   distribution = "adaboost",
                   metric = "ROC",
                   verbose = FALSE)
+gbmA_fit$bestTune
 gbm_plot = ggplot(gbmA_fit, highlight = TRUE)
 ```
 
@@ -343,7 +346,10 @@ km_vis <- fviz_cluster(list(data = bc_df_scale, cluster = km$cluster),
 km_vis
 ```
 
-
+```{r fig.height=20, fig.width=20, out.width="100%"}
+library(cowplot)
+plot_grid(glm_plot, knn_plot, mars_plot, rpart_plot, rf_plot, gbm_plot, labels = c('Penalized Linear Regression', 'K-NN', 'MARS', "CART", "Random Forest", "AdaBoost"), align = "hv")
+```
 
 resampling results
 ```{r}
@@ -358,6 +364,17 @@ resamp = resamples(list(Plr = glm_fit,
                       SVMR = svmr_fit))
 bwplot(resamp)
 ```
+
+variable importance
+```{r}
+svmr_imp = varImp(svmr_fit)$importance %>% 
+  arrange(desc(M)) %>% 
+  top_n(n = 20)
+ggplot(svmr_imp, aes(x = reorder(rownames(svmr_imp),M), y = M, fill = M)) + 
+  geom_bar(stat="identity", position="dodge", fill = "darkseagreen") + 
+  coord_flip()
+```
+
 
 test AUC
 ```{r}
