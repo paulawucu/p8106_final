@@ -417,8 +417,33 @@ save_plot("varimp.jpeg", a)
 
 test AUC
 ```{r}
+pred_glm = predict(glm_fit, newdata = testData, type = "prob")[,2]
+pred_mars = predict(mars_fit, newdata = testData, type = "prob")[,2]
+pred_knn = predict(knn_fit, newdata = testData, type = "prob")[,2]
+pred_lda = predict(lda_fit, newdata = testData, type = "prob")[,2]
+pred_rpart = predict(rpart_fit, newdata = testData, type = "prob")[,2]
+pred_rf = predict(rf_fit, newdata = testData, type = "prob")[,2]
+pred_gbmA = predict(gbmA_fit, newdata = testData, type = "prob")[,2]
+pred_svml = predict(svml_fit, newdata = testData, type = "prob")[,2]
+pred_svmr = predict(svmr_fit, newdata = testData, type = "prob")[,2]
 
+roc.glm = roc(testData$diagnosis, pred_glm)
+roc.mars = roc(testData$diagnosis, pred_mars)
+roc.knn = roc(testData$diagnosis, pred_knn)
+roc.lda = roc(testData$diagnosis, pred_lda)
+roc.rpart = roc(testData$diagnosis, pred_rpart)
+roc.rf = roc(testData$diagnosis, pred_rf)
+roc.gbmA = roc(testData$diagnosis, pred_gbmA)
+roc.svml = roc(testData$diagnosis, pred_svml)
+roc.svmr = roc(testData$diagnosis, pred_svmr)
+
+testAUC = c(roc.glm$auc[1], roc.mars$auc[1], roc.knn$auc[1], roc.lda$auc[1], roc.rpart$auc[1], roc.rf$auc[1], roc.gbmA$auc[1], roc.svml$auc[1], roc.svmr$auc[1]) %>% 
+  as.tibble() %>% 
+  mutate(model = c("Plr", "MARS", "KNN", "LDA", "CART", "RF", "GB", "SVML", "SVMR")) %>% 
+  select(model, everything()) %>% 
+  arrange(desc(value)) %>% 
+  rename(., testAUC =value)
+
+testAUC %>% knitr::kable()
 ```
-
-
 
