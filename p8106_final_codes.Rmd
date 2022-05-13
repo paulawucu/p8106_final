@@ -135,6 +135,8 @@ mars_fit = train(x = x,
                  tuneGrid = mars_grid,
                  metric = "ROC",
                  trControl = ctrl)
+saveRDS(mars_fit, "./results/mars_fit.rds")
+
 
 mars_plot = ggplot(mars_fit, highlight = TRUE)
 mars_fit$bestTune
@@ -236,6 +238,7 @@ gbmA_fit = train(diagnosis ~.,
                   distribution = "adaboost",
                   metric = "ROC",
                   verbose = FALSE)
+saveRDS(gbmA_fit, "./results/gbmA_fit.rds")
 gbmA_fit$bestTune
 gbm_plot = ggplot(gbmA_fit, highlight = TRUE)
 ```
@@ -253,6 +256,7 @@ svml_fit <- train(diagnosis~.,
                   preProcess = c("center", "scale"),
                   tuneGrid = data.frame(cost = exp(seq(-3,2,len = 50))),
                   trControl = ctrl)
+saveRDS(svml_fit, "./results/svml_fit.rds")
 svml_plot = ggplot(svml_fit, highlight = TRUE)
 
 svml_fit$bestTune
@@ -280,6 +284,8 @@ svmr_fit <- train(diagnosis ~ . ,
                   preProcess = c("center", "scale"),
                   tuneGrid = svmr.grid,
                   trControl = ctrl)
+saveRDS(svmr_fit, "./results/svmr_fit.rds")
+
 myCol<- rainbow(20)
 myPar <- list(superpose.symbol = list(col = myCol),
               superpose.line = list(col = myCol))
