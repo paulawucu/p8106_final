@@ -72,13 +72,41 @@ As an ensemble model, the random forest is flexible and has a better chance to c
 Boosting is a similar approach to the random forest, except that the trees are grown sequentially - each tree is grown using information from previously grown trees. Three hyperparameters, namely the total number of trees $B$, numbers of splits $d$, and shrinkage $\lambda$, are tuned. We use grid search, together with cross-validation, to find the optimal value for each tuning parameter. The optimal model that has the largest AUC is achieved when there are 4 degrees of interaction, 5000 trees fit, and 0.002 shrinkages. 
 
 
-## Support Vector Machine (SVM with Linear and Radial Kernels)
-SVM works by mapping data to a high-dimensional feature space so that data points can be categorized by the separating hyperplanes. The separating hyperplane that makes the biggest gap or margin between the two classes is selected. The decision function is fully specified by the support vectors (SVs), data points that lie closest to the decision surface, and the elements in the training set that would change the position of the hyperplane if removed [7]. For the linear kernel, support vector classifiers with one tuning parameter `cost` (tuned to be 0.969) are used to build a linear boundary. Since most real data sets will not be fully separable by a linear boundary, the radial kernel is used. At its core, the radial kernel indicates that support vector machines can construct classification boundaries that are nonlinear in shape. When tuning for the radial kernel, we add another tuning parameter - sigma. After cross-validation, the optimal `cost` is found to be 4.365 while `sigma` is 0.0286.
+### Support Vector Machine (SVM with Linear and Radial Kernels)
+SVM works by mapping data to a high-dimensional feature space so that data points can be categorized by the separating hyperplanes. The separating hyperplane that makes the biggest gap or margin between the two classes is selected. The decision function is fully specified by the support vectors (SVs), data points that lie closest to the decision surface, and the elements in the training set that would change the position of the hyperplane if removed [7]. For the linear kernel, support vector classifiers with one tuning parameter `cost` (tuned to be 0.424) are used to build a linear boundary. Since most real data sets will not be fully separable by a linear boundary, the radial kernel is used. At its core, the radial kernel indicates that support vector machines can construct classification boundaries that are nonlinear in shape. When tuning for the radial kernel, we add another tuning parameter - sigma. After cross-validation, the optimal `cost` is found to be 1.881 while `sigma` is 0.045.
+
 
 # Results
 After fitting the models, we would like to compare them and select the best one. We are also curious about what are the most important variables for models that have a relatively good fit. Details of model comparison and variable importance are shown below.
 
+# Results
+
+## Model Comparison: Resampling & Model Performance
+After fitting the training dataset to all 8 models, we measure their resampling AUC scores. The mean resampling AUC scores, sensitivity, and specificity are included in **Figure 5**. In general, all the models we fit have quite a high resampling AUC scores, and the top 4 models (radial SVM, penalized logistic regression, linear SVM, and random forest) are extremely close in their mean AUC values. On the other hand, the CART model has the lowest mean AUC with higher variance compared to other models, which verifies that as a single tree model, CART is unstable.
+
+Interestingly, although all 8 models have relatively high AUC, their sensitivity and specificity are more widespread. Among the top four models with the highest resampling AUC scores, SVM with radial kernel has the lowest mean sensitivity and highest mean specificity. 
+
+It is worth noting that neither the training nor the resampling AUCs should be adopted as the ultimate criterion when selecting the models. A model with large training AUC does not mean it has the best fit. Instead, we should re-run the models with unseen testing data to see if the model overfits the training data. The test AUCs are examined with results presented in **Table 1**. There isn’t much difference in both ranking and values of test AUC and train/resampling AUCs, which suggests a good fit.
+
+Although the radial SVM model has the largest AUC, its mean sensitivity is below most of our other models, which can potentially lead to the delayed intervention of malignant breast tumors. Therefore, considering all facts above, we choose the penalized logistic regression model as our optimal final model, with high sensitivity, specificity, and high interpretability.
+
+
+## Variable Importance
+
+We select the top 4 models with the largest AUC scores to measure the variable importance. We can see that the radial SVM model, linear SVM model, and random forest model all identify the “worst” perimeter (of the tumor), the “worst” radius (mean of distances from the center to points on the perimeter), the “worst” area, the “worst” concave points (number of concave portions of the contour), the mean of the concave points (number of concave portions of the contour), and the mean of the perimeter (of the tumor) as their top 6 important variables. And penalized logistic regression model identifies the variables of the standard error of fractal dimension ("coastline approximation" - 1), the standard error of smoothness (local variation in radius lengths), the “worst” smoothness (local variation in radius lengths), the mean of the concave points (number of concave portions of the contour), the standard error of compactness (perimeter^2 / area - 1.0), and the “worst” concave points (number of concave portions of the contour) as its top 6 important variables.
+
+
 # Conclusion & Discussion
+
+As discussed above, we choose the Penalized Logistic Regression as our final model due to its relatively high performance and accessible interpretability. In the EDA section above, we stated that there is a high correlation across the predictors. By doing penalized logistic regression, we can reduce the effect of high correlation between predictors and make a better prediction.
+
+The coefficients of the final model are shown in **Table 2**. Interpretation of the coefficient of **radius mean** is provided as follows: holding all other variables fixed, with every one unit of increase in the mean radius of the breast mass, the odds ratio of the imaging being categorized as malignant will increase by 5.65% (calculated as $(e^{0.055} - 1) \times 100%$). While we don’t provide the full interpretation of all coefficients, we do want to point out that coefficients of several variables - such as worst smoothness, se of smoothness, and mean of concave points - are large in magnitude, indicating that the change in values of these predictors will result in a huge change in the odds ratio of classifying an image to be malignant. This coincides with what we observed in the variable importance section to some extent. 
+
+With respect to our goal mentioned in the previous section, we can conclude that our final model performs relatively well in distinguishing between malignant and benign tumors using imaging measures. 
+
+In addition, we do notice that this is quite a well-separated data since all 8 trained models have achieved high model performance. Maybe in the future, we can apply the same methods to a different dataset to examine the tuning results along with the important variables.  
+
+
 
 # Appendix
 
