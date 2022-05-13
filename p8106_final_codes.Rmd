@@ -86,7 +86,6 @@ ctrl <- trainControl(method = "cv",
 
 ### Penalized Logistic Regression
 ```{r}
-
 glmnGrid = expand.grid(.alpha = seq(0,1,length = 21),
                        .lambda = exp(seq(-8,-1,length =50)))
 set.seed(31)        
@@ -422,5 +421,16 @@ testAUC = c(roc.glm$auc[1], roc.mars$auc[1], roc.knn$auc[1], roc.lda$auc[1], roc
   rename(., testAUC =value)
 
 testAUC %>% knitr::kable(caption = "testAUC scores")
+```
+
+Final model coefficients:
+```{r}
+coef = coef(glm_fit$finalModel, glm_fit$finalModel$lambdaOpt) %>% 
+  as.matrix() %>% 
+  as.data.frame() %>% 
+  filter(s1 != 0) %>% 
+  rename(., coef = s1)
+coef %>% knitr::kable(caption = "Coefficients of Penalized Logistic Regression Model")
+ 
 ```
 
