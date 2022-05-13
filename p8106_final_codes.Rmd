@@ -203,10 +203,7 @@ rpart_fit = train(diagnosis ~., trainData,
 rpart_plot = ggplot(rpart_fit, highlight = TRUE)
 rpart_fit$bestTune
 ```
-```{r}
-rpart_pred = predict(rpart_fit, newdata = testData, type = "prob")[,2]
-roc(testData$diagnosis, rpart_pred)
-```
+
 
 random forest
 ```{r}
@@ -222,13 +219,6 @@ rf_fit = train(diagnosis ~., trainData,
                trControl = ctrl)
 rf_plot = ggplot(rf_fit, highlight = TRUE)
 rf_fit$bestTune
-```
-
-```{r}
-rf_pred = predict(rf_fit, newdata = testData, type = "prob")[,1]
-roc_rf = roc(testData$diagnosis, rf_pred)
-plot(roc_rf, legacy.axes = TRUE, print.auc = TRUE)
-plot(smooth(roc_rf), col = 4, add = TRUE)
 ```
 
 AdaBoost
@@ -277,12 +267,6 @@ train_error = mean(pred_svml_train != trainData$diagnosis)
 pred_svml_test = predict(svml_fit, newdata = testData, type = "raw")
 test_error = mean(pred_svml_test != testData$diagnosis)
 
-# SVML roc:
-pred_svml = predict(svml_fit, newdata = testData, type = "prob")[,1]
-roc_svml = roc(testData$diagnosis, pred_svml,
-               levels = c("B", "M"))
-
-plot.roc(roc_svml, legacy.axes = TRUE, print.auc = TRUE,main = "SVML ROC Plot")
 ```
 
 b) Radial Kernel
@@ -312,13 +296,6 @@ train_svmr_error = mean(pred_svmr_train != trainData$diagnosis)
 # Radial Kernel test error rate
 pred_svmr_test = predict(svmr_fit, newdata = testData, type = "raw")
 test_svmr_error = mean(pred_svmr_test != testData$diagnosis)
-
-# SVMR roc:
-pred_svmr = predict(svmr_fit, newdata = testData, type = "prob")[,1]
-roc_svmr = roc(testData$diagnosis, pred_svmr,
-               levels = c("B", "M"))
-
-plot.roc(roc_svmr, legacy.axes = TRUE, print.auc = TRUE,main = "SVMR ROC Plot")
 ```
 
 ##Cluster Analysis
@@ -444,6 +421,6 @@ testAUC = c(roc.glm$auc[1], roc.mars$auc[1], roc.knn$auc[1], roc.lda$auc[1], roc
   arrange(desc(value)) %>% 
   rename(., testAUC =value)
 
-testAUC %>% knitr::kable()
+testAUC %>% knitr::kable(caption = "testAUC scores")
 ```
 
