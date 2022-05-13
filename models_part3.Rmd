@@ -79,30 +79,39 @@ featurePlot(x = cancer_mean,
 a) Linear Kernel
 
 ```{r}
-ctrl <- trainControl(method = "cv")
+ctrl <- trainControl(method = "cv", classProbs = TRUE, summaryFunction = twoClassSummary)
 set.seed(31)
-svml.fit <- train(diagnosis~., 
+model.svml <- train(diagnosis~., 
                   data = trainData, 
                   method = "svmLinear2",
                   preProcess = c("center", "scale"),
                   tuneGrid = data.frame(cost = exp(seq(-3,2,len = 50))),
                   trControl = ctrl)
-ggplot(svml.fit, highlight = TRUE)
+ggplot(model.svml, highlight = TRUE)
 ```
 
 ```{r}
-svml.fit$bestTune
-svml.fit$finalModel
+model.svml$bestTune
+model.svml$finalModel
 ```
 
 ```{r}
 ## Linear Kernel Training Error Rate
-pred_svml_train = predict(svml.fit)
+pred_svml_train = predict(model.svml)
 train_error = mean(pred_svml_train != trainData$diagnosis)
 
 ## Linear Kernel Test Error Rate
-pred_svml_test = predict(svml.fit, newdata = testData, type = "raw")
+pred_svml_test = predict(model.svml, newdata = testData, type = "raw")
 test_error = mean(pred_svml_test != testData$diagnosis)
+```
+
+```{r}
+# SVML roc:
+pred_svml = predict(model.svml, newdata = testData, type = "prob")[,1]
+roc_svml = roc(testData$diagnosis, pred_svml,
+               levels = c("B", "M"))
+
+plot.roc(roc_svml, legacy.axes = TRUE, print.auc = TRUE,main = "SVML ROC Plot")
 ```
 
 b) Radial Kernel
@@ -111,7 +120,7 @@ svmr.grid <- expand.grid(C = exp(seq(-4,4,len=20)),
                          sigma = exp(seq(-4,0,len=10)))
 # tunes over both cost and sigma
 set.seed(31)
-svmr.fit <- train(diagnosis ~ . ,
+model.svmr <- train(diagnosis ~ . ,
                   data = trainData,
                   method = "svmRadialSigma",
                   preProcess = c("center", "scale"),
@@ -120,35 +129,54 @@ svmr.fit <- train(diagnosis ~ . ,
 myCol<- rainbow(20)
 myPar <- list(superpose.symbol = list(col = myCol),
               superpose.line = list(col = myCol))
-ggplot(svmr.fit, highlight = TRUE, par.settings = myPar)
+ggplot(model.svmr, highlight = TRUE, par.settings = myPar)
 ```
 
 ```{r}
-svmr.fit$bestTune
-svmr.fit$finalModel
+model.svmr$bestTune
+model.svmr$finalModel
 ```
 
 ```{r}
 # Radial Kernel training error rate
-pred_svmr_train = predict(svmr.fit)
+pred_svmr_train = predict(model.svmr)
 train_svmr_error = mean(pred_svmr_train != trainData$diagnosis)
 
 # Radial Kernel test error rate
-pred_svmr_test = predict(svmr.fit, newdata = testData, type = "raw")
+pred_svmr_test = predict(model.svmr, newdata = testData, type = "raw")
 test_svmr_error = mean(pred_svmr_test != testData$diagnosis)
+```
+
+```{r}
+# SVMR roc:
+pred_svmr = predict(model.svmr, newdata = testData, type = "prob")[,1]
+roc_svmr = roc(testData$diagnosis, pred_svmr,
+               levels = c("B", "M"))
+
+plot.roc(roc_svmr, legacy.axes = TRUE, print.auc = TRUE,main = "SVMR ROC Plot")
+```
+
+
+```{r}
+set.seed(1)             
+rpart.fit <- train(diabetes ~ . , dat, 
+                   subset = rowTrain,
+                   method = "rpart",
+                   tuneLength = 50,
+                   trControl = ctrl)
+
 ```
 
 #Cluster Analysis
 
 ## K-mean clustering
 ```{r}
-bc_df = bc_df %>% 
-  mutate(diagnosis = 
-           as.numeric(as.factor(recode(diagnosis, `M` = 1, `B` = 0))) - 1)
-bc_df_scale = bc_df[,2:31] %>% scale()
-bc_df_scale = data.frame(
-  diagnosis = bc_df$diagnosis,
-  data = bc_df_scale)
+index = seq.int(nrow(bc_df)) 
+class = paste0(bc_df$diagnosis,"-",index)
+
+bc_df_scale = bc_df[,2:31] %>% as.data.frame() 
+rownames(bc_df_scale) = class
+bc_df_scale = bc_df_scale %>% scale()
 
 set.seed(31)
 fviz_nbclust(bc_df_scale,
@@ -164,19 +192,22 @@ km_vis <- fviz_cluster(list(data = bc_df_scale, cluster = km$cluster),
 km_vis
 ```
 
+
+
+
 ## Hierarchical clustering using complete linkage and Euclidean distance
 
 ```{r}
 hc.complete.scaled <- hclust(dist(bc_df_scale), method = "complete")
 
-fviz_dend(hc.complete.scaled, k = 3,        
+fviz_dend(hc.complete.scaled, k = 2,        
           cex = 0.3, 
           palette = "jco", 
           color_labels_by_k = TRUE,
           rect = TRUE, rect_fill = TRUE, rect_border = "jco",
           labels_track_height = 1)
 
-bc.complete.scaled <- cutree(hc.complete.scaled, 3)
+bc.complete.scaled <- cutree(hc.complete.scaled, 2)
 
 ```
 
