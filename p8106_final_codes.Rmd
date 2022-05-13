@@ -86,7 +86,6 @@ ctrl <- trainControl(method = "cv",
 
 ### Penalized Logistic Regression
 ```{r}
-
 glmnGrid = expand.grid(.alpha = seq(0,1,length = 21),
                        .lambda = exp(seq(-8,-1,length =50)))
 set.seed(31)        
@@ -203,10 +202,7 @@ rpart_fit = train(diagnosis ~., trainData,
 rpart_plot = ggplot(rpart_fit, highlight = TRUE)
 rpart_fit$bestTune
 ```
-```{r}
-rpart_pred = predict(rpart_fit, newdata = testData, type = "prob")[,2]
-roc(testData$diagnosis, rpart_pred)
-```
+
 
 random forest
 ```{r}
@@ -222,13 +218,6 @@ rf_fit = train(diagnosis ~., trainData,
                trControl = ctrl)
 rf_plot = ggplot(rf_fit, highlight = TRUE)
 rf_fit$bestTune
-```
-
-```{r}
-rf_pred = predict(rf_fit, newdata = testData, type = "prob")[,1]
-roc_rf = roc(testData$diagnosis, rf_pred)
-plot(roc_rf, legacy.axes = TRUE, print.auc = TRUE)
-plot(smooth(roc_rf), col = 4, add = TRUE)
 ```
 
 AdaBoost
@@ -277,12 +266,6 @@ train_error = mean(pred_svml_train != trainData$diagnosis)
 pred_svml_test = predict(svml_fit, newdata = testData, type = "raw")
 test_error = mean(pred_svml_test != testData$diagnosis)
 
-# SVML roc:
-pred_svml = predict(svml_fit, newdata = testData, type = "prob")[,1]
-roc_svml = roc(testData$diagnosis, pred_svml,
-               levels = c("B", "M"))
-
-plot.roc(roc_svml, legacy.axes = TRUE, print.auc = TRUE,main = "SVML ROC Plot")
 ```
 
 b) Radial Kernel
@@ -312,13 +295,6 @@ train_svmr_error = mean(pred_svmr_train != trainData$diagnosis)
 # Radial Kernel test error rate
 pred_svmr_test = predict(svmr_fit, newdata = testData, type = "raw")
 test_svmr_error = mean(pred_svmr_test != testData$diagnosis)
-
-# SVMR roc:
-pred_svmr = predict(svmr_fit, newdata = testData, type = "prob")[,1]
-roc_svmr = roc(testData$diagnosis, pred_svmr,
-               levels = c("B", "M"))
-
-plot.roc(roc_svmr, legacy.axes = TRUE, print.auc = TRUE,main = "SVMR ROC Plot")
 ```
 
 ##Cluster Analysis
@@ -346,9 +322,9 @@ km_vis <- fviz_cluster(list(data = bc_df_scale, cluster = km$cluster),
 km_vis
 ```
 
-```{r fig.height=15, fig.width=20, out.width="100%"}
+```{r fig.height=20, fig.width=20, out.width="100%"}
 library(cowplot)
-plot_grid(glm_plot, knn_plot, mars_plot, rpart_plot, rf_plot, gbm_plot, svmr_plot, labels = c('Penalized Logistic  Regression', 'K-NN', 'MARS', "CART", "Random Forest", "AdaBoost", "SVM - Radial"), align = "hv", nrow = 3)
+plot_grid(glm_plot, knn_plot, mars_plot, rpart_plot, rf_plot, gbm_plot,svml_plot, svmr_plot, labels = c('Penalized Logistic  Regression', 'K-NN', 'MARS', "CART", "Random Forest", "AdaBoost", "SVM - Linear", "SVM - Radial"), align = "hv", nrow = 4)
 ```
 
 resampling results
@@ -411,8 +387,7 @@ knn_imp_plot =
   ylab("Variables") +
   ggtitle("K-NN")
 
-a = plot_grid(svmr_imp_plot, svml_imp_plot, glm_imp_plot, knn_imp_plot, align = "hv")
-save_plot("varimp.jpeg", a)
+plot_grid(svmr_imp_plot, svml_imp_plot, glm_imp_plot, knn_imp_plot, align = "hv")
 ```
 
 test AUC
@@ -444,6 +419,17 @@ testAUC = c(roc.glm$auc[1], roc.mars$auc[1], roc.knn$auc[1], roc.lda$auc[1], roc
   arrange(desc(value)) %>% 
   rename(., testAUC =value)
 
-testAUC %>% knitr::kable()
+testAUC %>% knitr::kable(caption = "testAUC scores")
+```
+
+Final model coefficients:
+```{r}
+coef = coef(glm_fit$finalModel, glm_fit$finalModel$lambdaOpt) %>% 
+  as.matrix() %>% 
+  as.data.frame() %>% 
+  filter(s1 != 0) %>% 
+  rename(., coef = s1)
+coef %>% knitr::kable(caption = "Coefficients of Penalized Logistic Regression Model")
+ 
 ```
 
