@@ -346,9 +346,9 @@ km_vis <- fviz_cluster(list(data = bc_df_scale, cluster = km$cluster),
 km_vis
 ```
 
-```{r fig.height=20, fig.width=20, out.width="100%"}
+```{r fig.height=15, fig.width=20, out.width="100%"}
 library(cowplot)
-plot_grid(glm_plot, knn_plot, mars_plot, rpart_plot, rf_plot, gbm_plot, labels = c('Penalized Linear Regression', 'K-NN', 'MARS', "CART", "Random Forest", "AdaBoost"), align = "hv")
+plot_grid(glm_plot, knn_plot, mars_plot, rpart_plot, rf_plot, gbm_plot, svmr_plot, labels = c('Penalized Logistic  Regression', 'K-NN', 'MARS', "CART", "Random Forest", "AdaBoost", "SVM - Radial"), align = "hv", nrow = 3)
 ```
 
 resampling results
@@ -370,14 +370,55 @@ variable importance
 svmr_imp = varImp(svmr_fit)$importance %>% 
   arrange(desc(M)) %>% 
   top_n(n = 20)
-ggplot(svmr_imp, aes(x = reorder(rownames(svmr_imp),M), y = M, fill = M)) + 
+svmr_imp_plot = 
+  ggplot(svmr_imp, aes(x = reorder(rownames(svmr_imp),M), y = M, fill = M)) + 
   geom_bar(stat="identity", position="dodge", fill = "darkseagreen") + 
-  coord_flip()
-```
+  coord_flip()+
+  xlab("Relative Importance") +
+  ylab("Variables") +
+  ggtitle("SVM Radial Kernel")
 
+svml_imp = varImp(svml_fit)$importance %>% 
+  arrange(desc(M)) %>% 
+  top_n(n = 20)
+svml_imp_plot = 
+  ggplot(svml_imp, aes(x = reorder(rownames(svml_imp),M), y = M, fill = M)) + 
+  geom_bar(stat="identity", position="dodge", fill = "darkseagreen") + 
+  coord_flip()+
+  xlab("Relative Importance") +
+  ylab("Variables") +
+  ggtitle("SVM Linear Kernel")
+
+glm_imp = varImp(glm_fit)$importance %>% 
+  arrange(desc(Overall)) %>% 
+  top_n(n = 10)
+glm_imp_plot = 
+  ggplot(glm_imp, aes(x = reorder(rownames(glm_imp),Overall), y = Overall, fill = Overall)) + 
+  geom_bar(stat="identity", position="dodge", fill = "darkseagreen") + 
+  coord_flip()+
+  xlab("Relative Importance") +
+  ylab("Variables") +
+  ggtitle("Penalized Logistic Regression")
+
+knn_imp = varImp(knn_fit)$importance %>% 
+  arrange(desc(M)) %>% 
+  top_n(n = 20)
+knn_imp_plot = 
+  ggplot(knn_imp, aes(x = reorder(rownames(knn_imp),M), y = M, fill = M)) + 
+  geom_bar(stat="identity", position="dodge", fill = "darkseagreen") + 
+  coord_flip()+
+  xlab("Relative Importance") +
+  ylab("Variables") +
+  ggtitle("K-NN")
+
+a = plot_grid(svmr_imp_plot, svml_imp_plot, glm_imp_plot, knn_imp_plot, align = "hv")
+save_plot("varimp.jpeg", a)
+```
 
 test AUC
 ```{r}
 
 ```
+
+
 
